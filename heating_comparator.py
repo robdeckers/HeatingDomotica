@@ -57,25 +57,6 @@ HEATPUMP_COP = 1.0
 # Dutch VAT (btw) factor (same as used for gas).
 BTW = ttf_gas.BTW
 
-# Retailer markup (leveringskosten) added on top of the wholesale Nord Pool
-# price, excl. btw, EUR/kWh.
-ELEC_MARKUP_PER_KWH = 0.02
-
-# Dutch energiebelasting for electricity (excl. btw), first bracket
-# (0 - 2,900 kWh/year), EUR/kWh (2024 tariff).
-ELEC_ENERGIEBELASTING_PER_KWH = 0.1228
-
-
-def nordpool_price_to_consumer_price_per_kwh(price_eur_per_mwh: float) -> float:
-    """Convert a Nord Pool wholesale price (EUR/MWh) into an all-in consumer
-    price (EUR/kWh), applying markup, energiebelasting and btw."""
-    wholesale_per_kwh = price_eur_per_mwh / 1000
-    total = (
-        wholesale_per_kwh + ELEC_MARKUP_PER_KWH + ELEC_ENERGIEBELASTING_PER_KWH
-    ) * BTW
-    return total
-
-
 def gas_consumer_price_to_heat_price_per_kwh(gas_price_eur_per_m3: float) -> float:
     """Convert a consumer gas price (EUR/m3) into a price per kWh of
     delivered heat, taking boiler efficiency into account."""
@@ -94,12 +75,7 @@ def fetch_prices() -> tuple[Optional[float], Optional[float]]:
     price. Returns (elec_price_eur_per_mwh, gas_price_eur_per_m3)."""
     now = datetime.now(timezone.utc)
 
-    nordpool_data = nordpool.fetch_day_ahead_prices(now)
-    elec_price = (
-        nordpool.extract_current_hour_price(nordpool_data, now)
-        if nordpool_data
-        else None
-    )
+    elec_price = nordpool.get_all_in_price_per_hour(now)
 
     ttf_price = ttf_gas.fetch_ttf_price_eur_per_mwh()
     gas_price = (
@@ -118,16 +94,12 @@ def run() -> None:
         now = datetime.now(timezone.utc)
         timestamp = now.astimezone().strftime("%Y-%m-%d %H:%M:%S")
 
-        elec_price_eur_per_mwh, gas_price_eur_per_m3 = fetch_prices()
+        elec_price_eur_per_kwh, gas_price_eur_per_m3 = fetch_prices()
 
-        if elec_price_eur_per_mwh is None or gas_price_eur_per_m3 is None:
+        if elec_price_eur_per_kwh is None or gas_price_eur_per_m3 is None:
             print(f"[{timestamp}] Could not determine both prices, skipping comparison.")
             time.sleep(POLL_INTERVAL_SECONDS)
             continue
-
-        elec_price_eur_per_kwh = nordpool_price_to_consumer_price_per_kwh(
-            elec_price_eur_per_mwh
-        )
 
         gas_heat_price = gas_consumer_price_to_heat_price_per_kwh(gas_price_eur_per_m3)
         elec_heat_price = elec_consumer_price_to_heat_price_per_kwh(
@@ -144,8 +116,7 @@ def run() -> None:
         print(
             f"[{timestamp}] Gas: {gas_price_eur_per_m3:.5f} EUR/m3 -> "
             f"{gas_heat_price:.5f} EUR/kWh heat (boiler eff. {GAS_BOILER_EFFICIENCY}) | "
-            f"Electricity: {elec_price_eur_per_mwh:.2f} EUR/MWh -> "
-            f"{elec_price_eur_per_kwh:.5f} EUR/kWh -> "
+            f"Electricity: {elec_price_eur_per_kwh:.2f} EUR/kWh -> "
             f"{elec_heat_price:.5f} EUR/kWh heat (heat pump COP {HEATPUMP_COP}) | "
             f"Cheaper: {cheaper} (by {diff:.5f} EUR/kWh heat)"
         )
