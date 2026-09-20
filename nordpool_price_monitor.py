@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import requests
@@ -43,8 +43,50 @@ def fetch_day_ahead_prices(date: datetime) -> Optional[dict]:
         print(f"[ERROR] Failed to fetch Nord Pool prices: {exc}", file=sys.stderr)
         return None
 
+def extract_current_hour_price(
+        data: dict, now: datetime
+) -> Optional[float]:
+    """Calculate the current hourly price from four 15-minute prices."""
 
-def extract_current_hour_price(data: dict, now: datetime) -> Optional[float]:
+    if not data:
+        return None
+
+    entries = data.get("multiAreaEntries") or data.get("entries") or []
+
+    current_hour_start = now.replace(
+        minute=0,
+        second=0,
+        microsecond=0,
+    )
+    current_hour_end = current_hour_start +  timedelta(hours=1)
+
+    prices = []
+
+    for entry in entries:
+        start_str = entry.get("deliveryStart") or entry.get("start")
+        end_str = entry.get("deliveryEnd") or entry.get("end")
+
+        if not start_str or not end_str:
+            continue
+
+        start = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
+        end = datetime.fromisoformat(end_str.replace("Z", "+00:00"))
+
+        # Select the four 15-minute periods belonging to this hour.
+        if start >= current_hour_start and end <= current_hour_end:
+            entry_per_area = entry.get("entryPerArea")
+
+            if entry_per_area and MARKET_AREA in entry_per_area:
+                prices.append(float(entry_per_area[MARKET_AREA]))
+            elif entry.get("price") is not None:
+                prices.append(float(entry["price"]))
+
+    if len(prices) != 4:
+        return None
+
+    return sum(prices) / 4
+
+#def extract_current_hour_price(data: dict, now: datetime) -> Optional[float]:
     """Extract the price entry that matches the current hour from the API response."""
     if not data:
         return None
