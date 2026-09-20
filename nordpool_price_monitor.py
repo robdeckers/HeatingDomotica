@@ -86,31 +86,7 @@ def extract_current_hour_price(
 
     return sum(prices) / 4
 
-#def extract_current_hour_price(data: dict, now: datetime) -> Optional[float]:
-    """Extract the price entry that matches the current hour from the API response."""
-    if not data:
-        return None
-
-    entries = data.get("multiAreaEntries") or data.get("entries") or []
-    for entry in entries:
-        start_str = entry.get("deliveryStart") or entry.get("start")
-        end_str = entry.get("deliveryEnd") or entry.get("end")
-        if not start_str or not end_str:
-            continue
-
-        start = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
-        end = datetime.fromisoformat(end_str.replace("Z", "+00:00"))
-
-        if start <= now < end:
-            entry_per_area = entry.get("entryPerArea")
-            if entry_per_area and MARKET_AREA in entry_per_area:
-                return float(entry_per_area[MARKET_AREA])
-            price = entry.get("price")
-            if price is not None:
-                return float(price)
-    return None
-
-def toConsumerPrice(price: float) -> None:
+def to_consumer_price(price: float) -> None:
     price_Kwh = price / 1000
     BTW = 1.21
     ANWB_inkoopkosten = (0.018 / BTW)
@@ -119,20 +95,25 @@ def toConsumerPrice(price: float) -> None:
     total_price = price_Kwh + (ANWB_inkoopkosten + Energiebelasting) * BTW
     return total_price
 
+def get_all_in_price_per_hour() -> None:
+    now = datetime.now(timezone.utc)
+    data = fetch_day_ahead_prices(now)
+    price = extract_current_hour_price(data, now) if data else None
+    consumer_price = to_consumer_price(price)
+    return consumer_price
+
 def run() -> None:
     print(
         f"Starting Nord Pool day-ahead price monitor for market '{MARKET_AREA}' "
         f"(polling every {POLL_INTERVAL_SECONDS // 60} minutes). Press Ctrl+C to stop."
     )
     while True:
-        now = datetime.now(timezone.utc)
-        data = fetch_day_ahead_prices(now)
-        price = extract_current_hour_price(data, now) if data else None
-        consumer_price = toConsumerPrice(price)
+        price = get_all_in_price_per_hour()
 
+        now = datetime.now(timezone.utc)
         timestamp = now.astimezone().strftime("%Y-%m-%d %H:%M:%S")
-        if consumer_price is not None:
-            print(f"[{timestamp}] Current hour day-ahead price ({MARKET_AREA}): {consumer_price:.2f} {CURRENCY}/kWh")
+        if price is not None:
+            print(f"[{timestamp}] Current hour day-ahead price ({MARKET_AREA}): {price:.2f} {CURRENCY}/kWh")
         else:
             print(f"[{timestamp}] Could not determine current hour price for {MARKET_AREA}.")
 
