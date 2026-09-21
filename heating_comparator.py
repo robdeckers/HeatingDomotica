@@ -75,12 +75,8 @@ def fetch_prices() -> tuple[Optional[float], Optional[float]]:
     price. Returns (elec_price_eur_per_mwh, gas_price_eur_per_m3)."""
     now = datetime.now(timezone.utc)
 
-    elec_price = nordpool.get_all_in_price_per_hour(now)
-
-    ttf_price = ttf_gas.fetch_ttf_price_eur_per_mwh()
-    gas_price = (
-        ttf_gas.ttf_price_to_consumer_price(ttf_price) if ttf_price is not None else None
-    )
+    elec_price = nordpool.get_all_in_price_per_hour()
+    gas_price = ttf_gas.get_all_in_price_per_hour()
 
     return elec_price, gas_price
 
