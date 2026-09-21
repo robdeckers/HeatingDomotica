@@ -49,9 +49,9 @@ BTW = 1.21
 # ANWB's published purchasing costs, incl. btw (EUR/m3).
 ANWB_INKOOPKOSTEN_INCL_BTW = 0.07680
 
-# Dutch energiebelasting for gas (excl. btw), EUR/m3 (2024 tariff, first
+# Dutch energiebelasting for gas (incl. btw), EUR/m3 (2024 tariff, first
 # bracket up to 170,000 m3/year).
-ENERGIEBELASTING_PER_M3 = 0.70544
+ENERGIEBELASTING_PER_M3 = 0.7268
 
 
 def fetch_ttf_price_eur_per_mwh() -> Optional[float]:
@@ -79,14 +79,21 @@ def fetch_ttf_price_eur_per_mwh() -> Optional[float]:
 
 def ttf_price_to_consumer_price(ttf_price_eur_per_mwh: float) -> float:
     """Convert an EEX/TTF market price (EUR/MWh) into a consumer price (EUR/m3)."""
-    ttf_price_per_m3 = ttf_price_eur_per_mwh * GAS_KWH_PER_M3 / 1000
-
-    anwb_inkoopkosten_excl_btw = ANWB_INKOOPKOSTEN_INCL_BTW / BTW
+    ttf_price_per_m3 = (ttf_price_eur_per_mwh * GAS_KWH_PER_M3 / 1000) * BTW
 
     total_price = (
-        ttf_price_per_m3 + ENERGIEBELASTING_PER_M3 + anwb_inkoopkosten_excl_btw
-    ) * BTW
+        ttf_price_per_m3 + ENERGIEBELASTING_PER_M3 + ANWB_INKOOPKOSTEN_INCL_BTW
+    )
     return total_price
+
+
+def get_all_in_price_per_hour() -> None:
+    price = fetch_ttf_price_eur_per_mwh()
+
+    if price is not None:
+        price = ttf_price_to_consumer_price(price)
+
+    return price
 
 
 def run() -> None:
@@ -96,14 +103,12 @@ def run() -> None:
     )
     while True:
         now = datetime.now(timezone.utc)
-        ttf_price = fetch_ttf_price_eur_per_mwh()
+        consumer_price = get_all_in_price_per_hour()
 
         timestamp = now.astimezone().strftime("%Y-%m-%d %H:%M:%S")
-        if ttf_price is not None:
-            consumer_price = ttf_price_to_consumer_price(ttf_price)
+        if consumer_price is not None:
             print(
-                f"[{timestamp}] EEX/TTF market price: {ttf_price:.3f} EUR/MWh | "
-                f"Consumer gas price: {consumer_price:.5f} EUR/m3"
+                f"[{timestamp}] EEX/TTF market price: Consumer gas price: {consumer_price:.5f} EUR/m3"
             )
         else:
             print(f"[{timestamp}] Could not determine current EEX/TTF gas price.")
