@@ -1,0 +1,9 @@
+# Keep the SQLite database on the Pi small: these sensors change every tick and carry large attributes.
+# Merge into the `recorder:` section of configuration.yaml. The price and last-decision sensors stay recorded,
+# so their history remains available.
+recorder:
+  exclude:
+    entities:
+      - sensor.heating_optimizer_demo_output
+      - sensor.heating_optimizer_status
+      - sensor.heating_optimizer_health

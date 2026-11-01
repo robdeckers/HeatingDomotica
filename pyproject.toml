@@ -1,0 +1,13 @@
+[project]
+name = "heating-optimizer"
+version = "0.1.0"
+description = "AppDaemon app that switches electric heaters on Shelly plugs when electric heat is cheaper than gas"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["appdaemon/apps", "tests"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"

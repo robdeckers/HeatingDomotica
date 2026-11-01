@@ -1,0 +1,37 @@
+# Helpers for the heating optimizer, for users who prefer YAML over the UI.
+# Add to configuration.yaml (or a package) and restart Home Assistant.
+# The entity IDs must match exactly; the app refers to them by these names.
+
+input_boolean:
+  heating_optimizer_enabled:
+    name: Heating optimizer enabled
+    icon: mdi:radiator
+
+input_button:
+  demo_electricity_price:
+    name: "Demo 1: electricity price"
+    icon: mdi:flash
+  demo_gas_price:
+    name: "Demo 2: gas price"
+    icon: mdi:fire
+  demo_shelly_plug:
+    name: "Demo 3: Shelly plugs"
+    icon: mdi:power-socket-eu
+  demo_house:
+    name: "Demo 4: house"
+    icon: mdi:home-lightning-bolt
+  demo_stop:
+    name: Stop demo
+    icon: mdi:stop-circle
+
+# Optional live tuning of the switch-on margin. When this helper exists, its value REPLACES
+# decision.margin_on_eur_per_kwh. A new helper starts at its minimum (0 ct): set it to 2.0 after creating it.
+input_number:
+  heating_optimizer_margin_ct:
+    name: Heating optimizer switch-on margin
+    icon: mdi:tune-variant
+    min: 0
+    max: 10
+    step: 0.1
+    unit_of_measurement: ct/kWh
+    mode: box

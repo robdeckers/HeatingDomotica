@@ -1,0 +1,100 @@
+heating_optimizer_main:
+  module: heating_optimizer_main
+  class: MainApp
+  config: &cfg
+    timezone: Europe/Amsterdam
+    dry_run: true # log decisions, never switch plugs (start here)
+
+    # ── Tariffs ─────────────────────────────────────────────────────────────
+    # ALL tariff components are entered INCLUDING 21% VAT, exactly as shown on
+    # the ANWB invoice / website and the Belastingdienst incl.-VAT tables.
+    # Update these every 1 January (energy tax) and whenever ANWB changes its fees.
+    tariffs_valid_until: 2026-12-31 # after this date → health DEGRADED (reminder to update)
+
+    electricity:
+      source: energyzero
+      energyzero_config_entry: TODO(user) # discovered in demo 1
+      price_resolution: hour # hour | quarter; ANWB bills per hour
+      supplier_markup_eur_per_kwh_incl_vat: 0.018 # ANWB inkoopvergoeding
+      energy_tax_eur_per_kwh_incl_vat: 0.11085 # energiebelasting 2026, tier 1 (0–2900 kWh)
+      vat_rate: 0.21 # only used to show the excl.-VAT breakdown
+      fallback_sensor: sensor.energyzero_today_energy_current_hour_price # verify in demo 1
+      fallback_sensor_includes_vat: true
+
+    gas:
+      source: energyzero
+      supplier_markup_eur_per_m3_incl_vat: 0.07680 # ANWB inkoopvergoeding, from 2026-09-01
+      energy_tax_eur_per_m3_incl_vat: 0.72680 # energiebelasting 2026, tier 1
+      vat_rate: 0.21 # only used to show the excl.-VAT breakdown
+      calorific_value_kwh_per_m3: 9.769 # Dutch reference (upper value 35.17 MJ/m³)
+      boiler_efficiency: 0.90 # HR boiler, realistic, on upper calorific value
+      fallback_sensor: sensor.energyzero_today_gas_current_hour_price # verify in demo 1
+      fallback_sensor_includes_vat: true
+
+    electric_heating:
+      efficiency: 1.0 # resistive heater; COP for a heat pump later
+
+    decision:
+      margin_on_eur_per_kwh: 0.02 # electric must be ≥2 ct cheaper to switch ON
+      margin_off_eur_per_kwh: 0.005 # switch OFF once electric ≥ gas − 0.5 ct
+      min_on_minutes: 15
+      min_off_minutes: 15
+      margin_override_entity: input_number.heating_optimizer_margin_ct # optional; ct/kWh
+      failsafe_state: "off" # prices unknown → plugs off (gas heats)
+      max_switches_per_hour: 4 # per plug; above this → flapping warning
+
+    prices:
+      daily_refresh_time: "15:05" # ANWB/EnergyZero publish tomorrow's prices ~15:00
+      retry_interval_minutes: 30 # until tomorrow's prices are loaded
+      tomorrow_expected_by: "16:30" # health warning after this time
+      sensor_max_age_minutes: 70 # only for the sensor fallback
+
+    loop:
+      interval_minutes: 5 # ticks at hh:00, hh:05, … hh:55; must divide 60
+      evaluate_on_startup: true
+
+    house:
+      name: Home
+      plugs:
+        - name: shelly_1
+          model: S3PL-30110EU # Shelly Plug M Gen3
+          device_id: "907069543f3c" # MAC: permanent identity
+          switch_entity: auto # auto-discover by MAC, or set e.g. switch.xxx
+          fallback_ip: 192.168.2.18 # DHCP, may change: only a fallback
+          heater_power_w: 3000 # heater's max rating at 230 V
+          plug_max_power_w: 3000 # plug rating; informational
+          plug_max_current_a: 13.0 # plug rating; the actual safety trip criterion
+          overcurrent_min_duration_s: 10
+          max_device_temp_c: 70 # plug internal temperature
+          active_power_threshold_w: 10 # above this, the heater counts as active
+        - name: shelly_2
+          model: S3PL-30110EU
+          device_id: "9070695dba7c"
+          switch_entity: auto
+          fallback_ip: 192.168.2.19
+          heater_power_w: 3000
+          plug_max_power_w: 3000
+          plug_max_current_a: 13.0
+          overcurrent_min_duration_s: 10
+          max_device_temp_c: 70
+          active_power_threshold_w: 10
+
+    shelly_rpc:
+      enabled: true # read-only diagnostics
+      timeout_s: 3
+      hostname_pattern: "shellyplugmg3-{device_id}.local" # verify in demo 3
+      # password: !secret shelly_password   # only if the plugs have authentication enabled
+
+    logging:
+      level: INFO # DEBUG for diagnosis sessions only (SD-card wear)
+      decision_log_dir: /config/logs/heating_optimizer # = /addon_configs/a0d7b954_appdaemon/logs/heating_optimizer
+      rotate_mb: 5
+      backups: 10
+
+    control_entity: input_boolean.heating_optimizer_enabled
+
+heating_optimizer_demo:
+  module: heating_optimizer_demo
+  class: DemoApp
+  main_app: heating_optimizer_main
+  config: *cfg

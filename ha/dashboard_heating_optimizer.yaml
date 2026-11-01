@@ -1,0 +1,66 @@
+# Dashboard view for the heating optimizer.
+# Settings → Dashboards → Add dashboard → open it → ⋮ → Edit dashboard → ⋮ → Raw configuration editor,
+# and paste this (or paste the view under `views:` of an existing dashboard).
+title: Heating optimizer
+views:
+  - title: Heating optimizer
+    path: heating-optimizer
+    icon: mdi:radiator
+    cards:
+      - type: entities
+        title: Control
+        entities:
+          - entity: input_boolean.heating_optimizer_enabled
+          - entity: input_number.heating_optimizer_margin_ct
+          - entity: sensor.heating_optimizer_status
+          - entity: sensor.heating_optimizer_health
+          - entity: sensor.heating_optimizer_last_decision
+            secondary_info: last-changed
+      - type: glance
+        title: Cost of 1 kWh heat
+        columns: 3
+        entities:
+          - entity: sensor.heating_optimizer_elec_heat_price
+            name: Electric
+          - entity: sensor.heating_optimizer_gas_heat_price
+            name: Gas
+          - entity: sensor.heating_optimizer_price_delta
+            name: Gas − electric
+      - type: history-graph
+        title: Heat prices (24 h)
+        hours_to_show: 24
+        entities:
+          - entity: sensor.heating_optimizer_elec_heat_price
+          - entity: sensor.heating_optimizer_gas_heat_price
+      - type: markdown
+        title: Last decision
+        content: >-
+          **{{ states('sensor.heating_optimizer_last_decision') }}**
+          ({{ state_attr('sensor.heating_optimizer_last_decision', 'reason_code') }})<br>
+          {{ state_attr('sensor.heating_optimizer_last_decision', 'reason') }}<br>
+          <small>{{ state_attr('sensor.heating_optimizer_last_decision', 'timestamp') }}</small>
+      - type: grid
+        title: Demos
+        columns: 3
+        square: false
+        cards:
+          - type: button
+            entity: input_button.demo_electricity_price
+            tap_action: { action: toggle }
+          - type: button
+            entity: input_button.demo_gas_price
+            tap_action: { action: toggle }
+          - type: button
+            entity: input_button.demo_shelly_plug
+            tap_action: { action: toggle }
+          - type: button
+            entity: input_button.demo_house
+            tap_action: { action: toggle }
+          - type: button
+            entity: input_button.demo_stop
+            tap_action: { action: toggle }
+      - type: markdown
+        title: Demo output
+        content: >-
+          {% set lines = state_attr('sensor.heating_optimizer_demo_output', 'history') or [] %}
+          {% for line in lines[-15:] %}`{{ line }}`<br>{% endfor %}
