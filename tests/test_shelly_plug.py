@@ -21,9 +21,9 @@ def ha(clock):
     return ha
 
 
-def make_plug(ha, clock, dry_run=False, **overrides):
+def make_plug(ha, clock, **overrides):
     cfg = make_config(**overrides).house.plugs[0]
-    plug = ShellyPlug(cfg, ha, LOG, dry_run, clock=clock, sleep=lambda s: None)
+    plug = ShellyPlug(cfg, ha, LOG, clock=clock, sleep=lambda s: None)
     plug.discover()
     return plug
 
@@ -85,16 +85,6 @@ def test_turn_on_retries_three_times_then_reports_error(ha, clock):
     assert len([c for c in ha.calls if c[0] == "switch/turn_on"]) == 4
 
 
-def test_dry_run_never_calls_switch_services(ha, clock):
-    plug = make_plug(ha, clock, dry_run=True)
-    result = plug.turn_on("test")
-    assert result.dry_run and result.after == "on"
-    assert not [c for c in ha.calls if c[0].startswith("switch/")]
-    status = plug.read_status()
-    assert status.state == "on" and status.simulated and status.last_changed == NOW
-    assert ha.get_state("switch.plug1") == "off"
-
-
 def test_read_status_and_heater_active(ha, clock):
     plug = make_plug(ha, clock)
     ha.set("switch.plug1", "on")
@@ -118,7 +108,7 @@ def test_energy_in_wh_is_converted(ha, clock):
 
 
 def test_safety_trip_switches_off_and_locks_out_until_next_hour(ha, clock):
-    plug = make_plug(ha, clock, dry_run=True)  # safety acts for real even in dry-run
+    plug = make_plug(ha, clock)
     ha.set("switch.plug1", "on")
     ha.set("sensor.plug1_temperature", 75, device_class="temperature")
     reason = plug.check_safety(NOW)

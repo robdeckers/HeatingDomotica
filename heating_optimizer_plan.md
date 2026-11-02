@@ -203,7 +203,6 @@ heating_optimizer_main:
   class: MainApp
   config: &cfg
     timezone: Europe/Amsterdam
-    dry_run: true                               # log decisions, never switch plugs (start here)
 
     # ── Tariffs ─────────────────────────────────────────────────────────────
     # ALL tariff components are entered INCLUDING 21% VAT, exactly as shown on
@@ -356,7 +355,7 @@ elec_per_kwh_heat     = elec_consumer_per_kwh / electric_heating.efficiency
 **Optional extended diagnostics:** read-only direct calls to the Gen3 RPC API (`http://<ip>/rpc/Shelly.GetStatus` and `Shelly.GetDeviceInfo`), with the IP resolved and its identity verified as described in section 2a. These provide firmware version, `apower`, `aenergy`, voltage, current, frequency, temperature, WiFi RSSI, and uptime. **Never switch the plug via RPC.** Switching always goes through HA, so HA stays the single source of truth.
 
 **`ShellyPlug` class (`devices/shelly_plug.py`):**
-- `turn_on()` and `turn_off()`. Each call is followed by a **read-back verification** of the switch state, with up to 3 retries and a back-off delay. A mismatch is logged as an error. In `dry_run` mode these methods log what they would do and change nothing.
+- `turn_on()` and `turn_off()`. Each call is followed by a **read-back verification** of the switch state, with up to 3 retries and a back-off delay. A mismatch is logged as an error.
 - `read_status()` returns a dataclass with state, power in W, energy in kWh, voltage, current, temperature, RSSI, availability, the last-changed time, and `heater_active` (`state == on` and `power_w > active_power_threshold_w`).
 - `is_available()`: an entity state of `unavailable` or `unknown` counts as unavailable.
 - **Safety checks** run on every state change of the plug's current, power, and temperature sensors (`listen_state`), not only on the 5-minute tick, so a fault is caught within seconds. The plug is switched off and locked out until the next full hour when:
@@ -379,7 +378,7 @@ elec_per_kwh_heat     = elec_consumer_per_kwh / electric_heating.efficiency
 - If one plug is unavailable, the other is still controlled, and the decision log records the failure.
 - Design note for the future: the decision engine takes a `HouseSnapshot`, so solar surplus can later become a third cost input with an effective price close to €0 or the feed-in value.
 
-**Demo 4 (30 s):** show the house status, switch all plugs on together, show the aggregated power every 5 s, then switch them off and restore their original states. Then simulate the failure of one plug in dry-run mode and show how the house reports it.
+**Demo 4 (30 s):** show the house status, switch all plugs on together, show the aggregated power every 5 s, then switch them off and restore their original states. Then simulate the failure of one plug, show how the house reports it, and restore the plugs.
 
 ### 6.5 Step 5 – Main logic
 
@@ -417,7 +416,7 @@ At an hour boundary (minute 00), the app forces a price lookup for the new hour 
 
 - The app listens for state changes of each `input_button.demo_*`. A button press changes the button's state to a timestamp.
 - Only **one demo runs at a time**. Starting a demo **pauses the main loop**: a shared lock stops the main loop's switching, and its state is restored afterwards. A press during a running demo is ignored, with a notification.
-- The demos switch the plugs even when `dry_run` is true (switching is what they test), except for the explicitly simulated failure in demo 4.
+- The demos switch the plugs for real (switching is what they test) and restore them afterwards.
 - Each demo runs a **30 s loop**, implemented with AppDaemon's scheduler or `run_in` rather than blocking `sleep`. Each demo:
   - writes every step to the log and to `sensor.heating_optimizer_demo_output`, putting the last line in the state and the rolling history (last 50 lines) in attributes;
   - creates a `persistent_notification` at the start and at the end, with a PASS or FAIL summary;
@@ -434,7 +433,6 @@ At an hour boundary (minute 00), the app forces a price lookup for the new hour 
 {
   "ts": "2026-10-27T14:05:00+01:00",
   "tick": "aligned",
-  "dry_run": false,
   "hour_change": false,
   "action": "ON",
   "reason_code": "ELEC_CHEAPER",
@@ -460,7 +458,7 @@ At an hour boundary (minute 00), the app forces a price lookup for the new hour 
 ## 9. Extended diagnostics (`diagnostics.py`)
 
 The app publishes these to HA as sensors, with rich attributes:
-- `sensor.heating_optimizer_status`: running, dry_run, paused (demo), disabled, or failsafe; plus the time of the last tick, the time of the next tick, and the drift in ms.
+- `sensor.heating_optimizer_status`: running, paused (demo), disabled, or failsafe; plus the time of the last tick, the time of the next tick, and the drift in ms.
 - `sensor.heating_optimizer_elec_heat_price`, `sensor.heating_optimizer_gas_heat_price`, and `sensor.heating_optimizer_price_delta` (all €/kWh, with every component as an attribute).
 - `sensor.heating_optimizer_last_decision`, containing the action, the reason, and the timestamp.
 - `sensor.heating_optimizer_health`, which is OK, DEGRADED, or ERROR, with these checks as attributes:
@@ -497,7 +495,6 @@ The app publishes these to HA as sensors, with rich attributes:
   - the clock alignment, including startup at hh:03:27, hh:59:59, and the daylight-saving transitions (last Sunday of March and October);
   - the gas-day boundary at 06:00, the averaging of 15-minute prices into an hour, and an hour with missing quarters.
 - Use fake adapters (`FakePriceProvider`, `FakePlug`, `FakeClock` in `tests/fakes.py`) so the tests need no HA or AppDaemon.
-- **Dry-run mode** (`dry_run: true` in the config, the default for first deployment): the full main loop runs and logs decisions but never switches the plugs.
 
 ---
 
@@ -510,12 +507,12 @@ The app publishes these to HA as sensors, with rich attributes:
 5. `ShellyPlug`, then **demo 3**.
 6. `House`, then **demo 4**.
 7. `DecisionEngine` and `scheduling.py` with their tests.
-8. `MainApp`: scheduler, enable/disable handling, decision log, diagnostics sensors, logbook. Verify it in dry-run mode first.
+8. `MainApp`: scheduler, enable/disable handling, decision log, diagnostics sensors, logbook.
 9. HA dashboard YAML, the recorder exclusions, `docs/ha_setup.md`, and the README (including the Raspberry Pi notes, the operating model, and the deploy steps).
 
 **Acceptance criteria:**
 - All demos report PASS on the real hardware. For demo 3's power check, the user switches the heaters on beforehand.
-- In dry-run mode, the main loop runs for 2 hours with ticks within 2 s of each 5-minute mark, and the decision log shows a correct price lookup at every hour change.
+- The main loop runs for 2 hours with ticks within 2 s of each 5-minute mark, and the decision log shows a correct price lookup at every hour change.
 - Switching `heating_optimizer_enabled` off turns both plugs off once, after which manual switching in HA is not overridden.
 - All unit tests pass and pre-commit passes on `HeatingOptimizer/`.
 

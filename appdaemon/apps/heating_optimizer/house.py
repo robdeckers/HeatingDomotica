@@ -82,36 +82,33 @@ class House:
             production = sum(v for v in values if v is not None)
         return HouseSnapshot(statuses, bool(on), since, locked, available, production)
 
-    def set_heating(self, on: bool, reason: str, now: datetime, dry_run: bool | None = None) -> list[SwitchResult]:
+    def set_heating(self, on: bool, reason: str, now: datetime) -> list[SwitchResult]:
         """Bring every available plug to the requested state. Locked-out plugs are kept off. One failing plug does
         not stop the others."""
         target = "on" if on else "off"
         results = []
         for device in self.devices:
             try:
-                results.append(self._apply(device, target, reason, now, dry_run))
+                results.append(self._apply(device, target, reason, now))
             except Exception as exc:
                 self.logger.exception("%s: switching to %s failed", device.name, target)
-                results.append(SwitchResult(device.name, None, None, target, False, 0, bool(dry_run), error=str(exc)))
+                results.append(SwitchResult(device.name, None, None, target, False, 0, error=str(exc)))
         return results
 
-    def _apply(
-        self, device: HeatingDevice, target: str, reason: str, now: datetime, dry_run: bool | None
-    ) -> SwitchResult:
+    def _apply(self, device: HeatingDevice, target: str, reason: str, now: datetime) -> SwitchResult:
         status = device.read_status()
-        dry = getattr(device, "dry_run", False) if dry_run is None else dry_run
         if not status.available:
             self.logger.warning("%s: unavailable, not switched to %s", device.name, target)
-            return SwitchResult(device.name, None, None, target, False, 0, dry, skipped="unavailable")
+            return SwitchResult(device.name, None, None, target, False, 0, skipped="unavailable")
         if device.is_locked_out(now):
             if status.is_on:
-                return device.turn_off(f"locked out ({reason})", dry_run)
-            return SwitchResult(device.name, status.state, status.state, target, True, 0, dry, skipped="locked out")
+                return device.turn_off(f"locked out ({reason})")
+            return SwitchResult(device.name, status.state, status.state, target, True, 0, skipped="locked out")
         if status.state == target:
-            return SwitchResult(device.name, status.state, status.state, target, True, 0, dry)
+            return SwitchResult(device.name, status.state, status.state, target, True, 0)
         if target == "on":
-            return device.turn_on(reason, dry_run)
-        return device.turn_off(reason, dry_run)
+            return device.turn_on(reason)
+        return device.turn_off(reason)
 
     def status(self, now: datetime) -> HouseStatus:
         statuses = tuple(d.read_status() for d in self.devices)

@@ -27,8 +27,6 @@ shares the repository's pre-commit hooks.
 - **Failsafe.** If the current price is unknown, the plugs go OFF: gas is the safe default.
 - **Disable.** Switching `input_boolean.heating_optimizer_enabled` off turns both plugs off once. After that the app
   stays hands-off, so you can switch the plugs by hand in HA.
-- **Dry run** (`dry_run: true`, the default) runs everything and logs decisions but never switches the plugs.
-  Safety trips still switch a plug off for real.
 - **Thermostat interaction.** Savings come from the gas thermostat firing less while the electric heaters warm the
   room. Thermostat setpoint and location matter. Controlling the thermostat is out of scope.
 
@@ -102,7 +100,7 @@ deliberately. See [docs/ha_setup.md](docs/ha_setup.md) for the one-time Home Ass
    entities and the config entry ID. Fill that in on the Pi and restart AppDaemon.
 2. Check the energy tax figures against the official Belastingdienst table. The 2026 values in the config
    (€0.11085/kWh, €0.72680/m³ incl. VAT) came from secondary sources.
-3. Run the demos with `dry_run: true`. Each runs about 30 s, posts a notification with PASS/FAIL, and restores the
+3. Run the demos. Each runs about 30 s, posts a notification with PASS/FAIL, and restores the
    plugs afterwards. **Stop demo** aborts and restores immediately. A demo pauses the main loop while it runs.
    - **Demo 1 – electricity:** today's price curve, cheapest/most expensive hours, consumer price breakdown, data
      source and age, call latency.
@@ -110,10 +108,10 @@ deliberately. See [docs/ha_setup.md](docs/ha_setup.md) for the one-time Home Ass
    - **Demo 3 – Shelly plugs:** identity check (MAC via RPC, resolved IP and how), switch on, read every 3 s, switch
      off, restore. Switch the heaters on by hand first if you want the power check; otherwise it reports SKIPPED.
    - **Demo 4 – house:** all plugs on together with aggregated power, off, restore, then a simulated failure of one
-     plug (dry-run) to show how it is reported.
-4. Turn on `input_boolean.heating_optimizer_enabled`, let it run in dry-run for a couple of hours, and check
-   `decisions.csv`. Ticks should be within 2 s of each 5-minute mark, with a `HOUR_CHANGE` price lookup every hour.
-5. Set `dry_run: false` and restart AppDaemon.
+     plug to show how it is reported (the other plug is switched for real and restored).
+4. Turn on `input_boolean.heating_optimizer_enabled`. From then on the app switches the plugs. Watch it for a
+   couple of hours and check `decisions.csv`. Ticks should be within 2 s of each 5-minute mark, with a
+   `HOUR_CHANGE` price lookup every hour.
 
 ## Logs and diagnostics
 

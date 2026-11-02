@@ -98,4 +98,4 @@ Edit `configuration.yaml` (File editor or Studio Code Server app) and merge `ha/
      `ssh root@homeassistant.local "sed -i 's/energyzero_config_entry: TODO(user).*/energyzero_config_entry: <ID>/' /addon_configs/a0d7b954_appdaemon/apps/heating_optimizer.yaml"`
    - AppDaemon reloads the app automatically when the file changes. Check **Settings → Apps → AppDaemon → Log**
      for `Self-test passed`.
-4. Leave `dry_run: true` and run the four demos (see the README).
+4. Leave `input_boolean.heating_optimizer_enabled` off and run the four demos (see the README).

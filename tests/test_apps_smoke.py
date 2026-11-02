@@ -181,16 +181,6 @@ def test_gas_cheaper_keeps_plugs_off(tmp_path):
     assert decisions(tmp_path)[-1]["reason_code"] == "NO_CHANGE"
 
 
-def test_dry_run_never_switches(tmp_path):
-    ha = make_ha(elec_price=0.0)
-    app = make_main(ha, tmp_path, dry_run=True)
-    assert switch_calls(ha) == []
-    assert decisions(tmp_path)[-1]["action"] == "ON"
-    assert ha.get_state("sensor.heating_optimizer_status") == "dry_run"
-    app.evaluate("aligned")  # simulated state is on now: the second tick holds
-    assert decisions(tmp_path)[-1]["action"] == "HOLD"
-
-
 def test_missing_prices_fail_safe(tmp_path):
     ha = make_ha()
     ha.service_results["energyzero/get_energy_prices"] = RuntimeError("down")

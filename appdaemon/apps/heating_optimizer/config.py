@@ -116,7 +116,6 @@ class LoggingConfig:
 @dataclass(frozen=True)
 class AppConfig:
     timezone: str
-    dry_run: bool
     tariffs_valid_until: date
     electricity: ElectricityConfig
     gas: GasConfig
@@ -259,6 +258,8 @@ def parse_config(raw: Mapping[str, Any]) -> AppConfig:
         ZoneInfo(timezone)
     except (ZoneInfoNotFoundError, ValueError):
         r.problems.append(f"timezone: unknown time zone {timezone!r}")
+    if "dry_run" in raw:
+        r.problems.append("dry_run: no longer supported (plugs are always switched); remove it from apps.yaml")
 
     e_raw = r.section(raw, "electricity")
     p = "electricity."
@@ -365,7 +366,6 @@ def parse_config(raw: Mapping[str, Any]) -> AppConfig:
 
     config = AppConfig(
         timezone=timezone,
-        dry_run=r.boolean(raw, "dry_run", "", True),
         tariffs_valid_until=r.day(raw, "tariffs_valid_until", ""),
         electricity=electricity,
         gas=gas,

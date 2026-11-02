@@ -3,7 +3,6 @@ heating_optimizer_main:
   class: MainApp
   config: &cfg
     timezone: Europe/Amsterdam
-    dry_run: true # log decisions, never switch plugs (start here)
 
     # ── Tariffs ─────────────────────────────────────────────────────────────
     # ALL tariff components are entered INCLUDING 21% VAT, exactly as shown on

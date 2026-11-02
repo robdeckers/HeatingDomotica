@@ -33,9 +33,12 @@ def test_shipped_app_config_only_lacks_the_config_entry():
     assert info.value.problems == ["electricity.energyzero_config_entry: still set to TODO(user), fill in a real value"]
     raw["electricity"]["energyzero_config_entry"] = "x"
     cfg = parse_config(raw)
-    assert cfg.dry_run is True
     assert cfg.gas.boiler_efficiency == 0.90
     assert cfg.decision.min_on_minutes == 15
+
+
+def test_leftover_dry_run_is_rejected():
+    assert "dry_run: no longer supported" in problems(dry_run=True)
 
 
 def test_todo_marker_is_rejected():

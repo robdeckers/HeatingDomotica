@@ -87,7 +87,6 @@ class MainApp(hass.Hass):
                 plug_cfg,
                 self,
                 self.app_log,
-                cfg.dry_run,
                 rpc=ShellyRpcClient(cfg.shelly_rpc, plug_cfg.device_id, plug_cfg.fallback_ip, session, self.app_log)
                 if session is not None
                 else None,
@@ -120,8 +119,7 @@ class MainApp(hass.Hass):
             self._register_plug_listeners()
             self.ready = True
         self.app_log.info(
-            "Heating optimizer started%s; next aligned tick %s",
-            " in DRY-RUN mode (plugs are never switched)" if self.cfg.dry_run else "",
+            "Heating optimizer started; next aligned tick %s",
             next_aligned_tick(self._now(), self.cfg.loop.interval_minutes).astimezone(self.cfg.tz).isoformat(),
         )
         if self.cfg.loop.evaluate_on_startup:
@@ -356,7 +354,7 @@ class MainApp(hass.Hass):
             results = self.house.set_heating(decision.wants_on, reason, now)
             changed = self._count_switches(results, now)
             if changed and action in (Action.ON, Action.OFF):
-                self._logbook(f"{action}: {reason}" + (" [dry-run]" if cfg.dry_run else ""))
+                self._logbook(f"{action}: {reason}")
             if decision.reason_code is ReasonCode.STALE_DATA:
                 self.app_log.warning(reason)
             self._last_decision = decision
@@ -424,7 +422,6 @@ class MainApp(hass.Hass):
         record = {
             "ts": now.astimezone(tz).isoformat(timespec="seconds"),
             "tick": tick,
-            "dry_run": self.cfg.dry_run,
             "hour_change": hour_change,
             "action": str(action),
             "reason_code": str(code),
@@ -506,7 +503,7 @@ class MainApp(hass.Hass):
             return "disabled"
         if self._last_decision and self._last_decision.reason_code is ReasonCode.STALE_DATA:
             return "failsafe"
-        return "dry_run" if self.cfg.dry_run else "running"
+        return "running"
 
     def _publish_status(self, now: datetime) -> None:
         tz = self.cfg.tz
@@ -517,7 +514,6 @@ class MainApp(hass.Hass):
                 "last_tick": self.diag.last_tick.astimezone(tz).isoformat() if self.diag.last_tick else None,
                 "next_tick": next_aligned_tick(now, self.cfg.loop.interval_minutes).astimezone(tz).isoformat(),
                 "drift_ms": _r(self.diag.last_drift_ms, 1),
-                "dry_run": self.cfg.dry_run,
                 "demo": self._paused_by,
             },
         )

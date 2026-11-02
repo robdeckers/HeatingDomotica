@@ -16,7 +16,6 @@ LOG = logging.getLogger("tests")
 
 RAW_CONFIG: dict[str, Any] = {
     "timezone": "Europe/Amsterdam",
-    "dry_run": False,
     "tariffs_valid_until": "2026-12-31",
     "electricity": {
         "energyzero_config_entry": "abc123",
@@ -171,23 +170,22 @@ class FakePlug:
         self.last_changed: datetime | None = None
         self.locked_until: datetime | None = None
         self.lockout_reason: str | None = None
-        self.dry_run = False
         self.fail_switch = False
         self.switch_calls: list[str] = []
 
-    def _switch(self, target: str, dry_run: bool | None) -> SwitchResult:
+    def _switch(self, target: str) -> SwitchResult:
         self.switch_calls.append(target)
         if self.fail_switch:
             raise RuntimeError("boom")
         before = self.state
         self.state = target
-        return SwitchResult(self.name, before, target, target, True, 1, bool(dry_run))
+        return SwitchResult(self.name, before, target, target, True, 1)
 
-    def turn_on(self, reason: str, dry_run: bool | None = None) -> SwitchResult:
-        return self._switch("on", dry_run)
+    def turn_on(self, reason: str) -> SwitchResult:
+        return self._switch("on")
 
-    def turn_off(self, reason: str, dry_run: bool | None = None) -> SwitchResult:
-        return self._switch("off", dry_run)
+    def turn_off(self, reason: str) -> SwitchResult:
+        return self._switch("off")
 
     def read_status(self) -> DeviceStatus:
         return DeviceStatus(

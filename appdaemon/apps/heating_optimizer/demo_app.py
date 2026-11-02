@@ -2,8 +2,7 @@
 
 Only one demo runs at a time. A demo pauses the main loop, runs its steps with ``run_in`` (no blocking sleep), writes
 every line to the log and to ``sensor.heating_optimizer_demo_output``, and restores the plugs at the end or when
-``input_button.demo_stop`` is pressed. Demos switch the plugs for real, also in dry-run mode, because switching is
-what they test (except demo 4's simulated failure).
+``input_button.demo_stop`` is pressed. Demos switch the plugs for real, because switching is what they test.
 """
 
 from __future__ import annotations
@@ -169,13 +168,8 @@ class DemoApp(hass.Hass):
         for name, state in self._restore.items():
             plug = main.house.device(name)
             plug.simulate_failure = False
-            plug.clear_simulation()
             if state in ("on", "off") and plug.real_state() != state:
-                result = (
-                    plug.turn_on("demo restore", dry_run=False)
-                    if state == "on"
-                    else plug.turn_off("demo restore", dry_run=False)
-                )
+                result = plug.turn_on("demo restore") if state == "on" else plug.turn_off("demo restore")
                 self._out(f"{name}: restored to {state} (verified={result.verified})")
         self._restore = {}
 
@@ -321,7 +315,7 @@ class DemoApp(hass.Hass):
                 self._read_line(plug, "initial")
 
             def switch_on(plug: Any = plug) -> None:
-                result = plug.turn_on("demo 3", dry_run=False)
+                result = plug.turn_on("demo 3")
                 self._check(
                     f"{plug.name} switch on + read-back",
                     "PASS" if result.verified else "FAIL",
@@ -339,7 +333,7 @@ class DemoApp(hass.Hass):
                     self._check(f"{plug.name} power detection", "PASS", f"max {max(powers):.0f} W")
                 else:
                     self._check(f"{plug.name} power detection", "SKIPPED", "heater appears switched off by hand")
-                result = plug.turn_off("demo 3", dry_run=False)
+                result = plug.turn_off("demo 3")
                 self._check(
                     f"{plug.name} switch off + read-back",
                     "PASS" if result.verified else "FAIL",
@@ -349,7 +343,7 @@ class DemoApp(hass.Hass):
             def restore(plug: Any = plug) -> None:
                 original = self._restore.get(plug.name)
                 if original == "on":
-                    plug.turn_on("demo 3 restore", dry_run=False)
+                    plug.turn_on("demo 3 restore")
                 self._out(f"{plug.name}: original state {original} restored")
 
             steps += [(base, identity), (base + 1, switch_on)]
@@ -373,23 +367,24 @@ class DemoApp(hass.Hass):
 
         def start() -> None:
             self._house_line(main, "initial")
-            results = house.set_heating(True, "demo 4", self._now(), dry_run=False)
+            results = house.set_heating(True, "demo 4", self._now())
             ok = all(r.verified for r in results if not r.skipped)
             self._check("all plugs on", "PASS" if ok else "FAIL", "; ".join(f"{r.name}:{r.after}" for r in results))
 
         def off() -> None:
-            results = house.set_heating(False, "demo 4", self._now(), dry_run=False)
+            results = house.set_heating(False, "demo 4", self._now())
             ok = all(r.verified for r in results if not r.skipped)
             self._check("all plugs off", "PASS" if ok else "FAIL", "; ".join(f"{r.name}:{r.after}" for r in results))
             self._restore_plugs()
 
         def simulated_failure() -> None:
             victim = main.plugs[-1]
+            self._remember(main.plugs)
             victim.simulate_failure = True
             try:
-                results = house.set_heating(True, "demo 4 simulated failure", self._now(), dry_run=True)
+                results = house.set_heating(True, "demo 4 simulated failure", self._now())
                 for r in results:
-                    self._out(f"[dry-run] {r.name}: requested {r.requested}, after {r.after}, skipped={r.skipped}")
+                    self._out(f"{r.name}: requested {r.requested}, after {r.after}, skipped={r.skipped}")
                 health = house.health(self._now())
                 self._out(f"house health: {health}")
                 others_ok = all(r.verified for r in results if r.name != victim.name)
@@ -400,8 +395,7 @@ class DemoApp(hass.Hass):
                 )
             finally:
                 victim.simulate_failure = False
-                for plug in main.plugs:
-                    plug.clear_simulation()
+                self._restore_plugs()
 
         return [
             (0, start),

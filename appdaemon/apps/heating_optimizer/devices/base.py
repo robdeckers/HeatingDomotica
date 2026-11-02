@@ -21,7 +21,6 @@ class DeviceStatus:
     temperature_c: float | None = None
     rssi_dbm: float | None = None
     heater_active: bool = False
-    simulated: bool = False  # state comes from dry-run simulation, not from the plug
 
     @property
     def is_on(self) -> bool:
@@ -41,7 +40,6 @@ class SwitchResult:
     requested: str
     verified: bool
     attempts: int
-    dry_run: bool
     skipped: str | None = None  # why the device was not switched (unavailable, locked out)
     error: str | None = None
 
@@ -53,9 +51,9 @@ class HeatingDevice(Protocol):
     name: str
     device_id: str
 
-    def turn_on(self, reason: str, dry_run: bool | None = None) -> SwitchResult: ...
+    def turn_on(self, reason: str) -> SwitchResult: ...
 
-    def turn_off(self, reason: str, dry_run: bool | None = None) -> SwitchResult: ...
+    def turn_off(self, reason: str) -> SwitchResult: ...
 
     def read_status(self) -> DeviceStatus: ...
 

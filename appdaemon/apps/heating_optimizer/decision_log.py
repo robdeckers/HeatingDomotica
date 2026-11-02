@@ -12,7 +12,6 @@ from typing import Any
 CSV_COLUMNS = (
     "ts",
     "tick",
-    "dry_run",
     "hour_change",
     "action",
     "reason_code",
@@ -46,6 +45,15 @@ class _RotatingFile:
                 src.replace(self.path.with_name(f"{self.path.name}.{i + 1}"))
         self.path.replace(self.path.with_name(f"{self.path.name}.1"))
 
+    def rotate_if_header_changed(self) -> None:
+        """Rotate an existing file whose header differs (columns changed), so new rows never sit under old headers."""
+        if not self._header or not self.path.exists():
+            return
+        with self.path.open(encoding="utf-8", newline="") as handle:
+            first = handle.readline()
+        if first and first != self._header:
+            self._rotate()
+
     def write(self, line: str) -> None:
         if self.path.exists() and self.path.stat().st_size + len(line) > self._max_bytes:
             self._rotate()
@@ -72,7 +80,6 @@ def csv_row(record: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "ts": record.get("ts"),
         "tick": record.get("tick"),
-        "dry_run": record.get("dry_run"),
         "hour_change": record.get("hour_change"),
         "action": record.get("action"),
         "reason_code": record.get("reason_code"),
@@ -104,6 +111,7 @@ class DecisionLogger:
         max_bytes = int(rotate_mb * 1024 * 1024)
         self._jsonl = _RotatingFile(directory / "decisions.jsonl", max_bytes, backups)
         self._csv = _RotatingFile(directory / "decisions.csv", max_bytes, backups, header=_csv_line(None))
+        self._csv.rotate_if_header_changed()
 
     def write(self, record: Mapping[str, Any]) -> None:
         self._jsonl.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")

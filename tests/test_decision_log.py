@@ -6,7 +6,6 @@ from heating_optimizer.decision_log import CSV_COLUMNS, DecisionLogger
 RECORD = {
     "ts": "2026-10-27T14:05:00+01:00",
     "tick": "aligned",
-    "dry_run": True,
     "hour_change": False,
     "action": "ON",
     "reason_code": "ELEC_CHEAPER",
@@ -41,3 +40,18 @@ def test_rotation_keeps_csv_header(tmp_path):
     assert not (tmp_path / "decisions.csv.3").exists()
     for name in ("decisions.csv", "decisions.csv.1"):
         assert (tmp_path / name).read_text().startswith("ts,tick,")
+
+
+def test_csv_with_old_header_is_rotated_away(tmp_path):
+    old = "ts,tick,dry_run,hour_change\nx,aligned,True,False\n"
+    (tmp_path / "decisions.csv").write_text(old)
+    DecisionLogger(str(tmp_path), 5, 3).write(RECORD)
+    assert (tmp_path / "decisions.csv.1").read_text() == old
+    assert tuple(next(csv.reader((tmp_path / "decisions.csv").open()))) == CSV_COLUMNS
+
+
+def test_csv_with_current_header_is_appended(tmp_path):
+    DecisionLogger(str(tmp_path), 5, 3).write(RECORD)
+    DecisionLogger(str(tmp_path), 5, 3).write(RECORD)
+    assert not (tmp_path / "decisions.csv.1").exists()
+    assert len(list(csv.DictReader((tmp_path / "decisions.csv").open()))) == 2

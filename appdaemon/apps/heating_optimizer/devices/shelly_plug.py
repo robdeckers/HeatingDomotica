@@ -229,7 +229,6 @@ class ShellyPlug:
         cfg: PlugConfig,
         ha: Any,
         logger: logging.Logger,
-        dry_run: bool,
         rpc: ShellyRpcClient | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         sleep: Callable[[float], None] | None = None,
@@ -239,7 +238,6 @@ class ShellyPlug:
         self.device_id = cfg.device_id
         self._ha = ha
         self._log = logger
-        self.dry_run = dry_run
         self.rpc = rpc
         self._clock = clock
         self._sleep = sleep or time.sleep
@@ -248,8 +246,6 @@ class ShellyPlug:
         self.lockout_until: datetime | None = None
         self.lockout_reason: str | None = None
         self.simulate_failure = False  # demo 4: pretend the plug is unavailable
-        self._sim_state: str | None = None
-        self._sim_since: datetime | None = None
         self.commanded_state: str | None = None  # last state this app requested
         self.verify_failures = 0
         self.lockout_count = 0
@@ -294,11 +290,8 @@ class ShellyPlug:
         return full.get("state"), _parse_dt(full.get("last_changed"))
 
     def real_state(self) -> str | None:
-        """Actual switch state in HA, ignoring any dry-run simulation."""
+        """Actual switch state in HA."""
         return self._switch_state()[0]
-
-    def clear_simulation(self) -> None:
-        self._sim_state = self._sim_since = None
 
     def is_available(self) -> bool:
         if self.simulate_failure:
@@ -311,15 +304,11 @@ class ShellyPlug:
         available = state not in UNAVAILABLE_STATES and not self.simulate_failure
         if available:
             self.last_seen = self._clock()
-        simulated = False
-        if self.dry_run and self._sim_state is not None:
-            state, last_changed, simulated = self._sim_state, self._sim_since, True
         energy = self._entity_value(self.entities.energy)
         if energy is not None and self.entities.energy:
             unit = (self._ha.get_state(self.entities.energy, attribute="unit_of_measurement") or "kWh").lower()
             energy = energy / 1000.0 if unit == "wh" else energy
         power = self._entity_value(self.entities.power)
-        real_state = self._switch_state()[0] if simulated else state
         return DeviceStatus(
             name=self.name,
             device_id=self.device_id,
@@ -332,28 +321,18 @@ class ShellyPlug:
             current_a=self._entity_value(self.entities.current),
             temperature_c=self._entity_value(self.entities.temperature),
             rssi_dbm=self._entity_value(self.entities.rssi),
-            heater_active=real_state == "on" and power is not None and power > self.cfg.active_power_threshold_w,
-            simulated=simulated,
+            heater_active=state == "on" and power is not None and power > self.cfg.active_power_threshold_w,
         )
 
     # ── switching ───────────────────────────────────────────────────────────
 
-    def turn_on(self, reason: str, dry_run: bool | None = None) -> SwitchResult:
-        return self._switch("on", reason, self.dry_run if dry_run is None else dry_run)
+    def turn_on(self, reason: str) -> SwitchResult:
+        return self._switch("on", reason)
 
-    def turn_off(self, reason: str, dry_run: bool | None = None) -> SwitchResult:
-        return self._switch("off", reason, self.dry_run if dry_run is None else dry_run)
+    def turn_off(self, reason: str) -> SwitchResult:
+        return self._switch("off", reason)
 
-    def _switch(self, target: str, reason: str, dry_run: bool) -> SwitchResult:
-        if dry_run:
-            before = self._sim_state or self._switch_state()[0]
-            if before != target:
-                self._sim_state, self._sim_since = target, self._clock()
-            else:
-                self._sim_state = target
-            self._log.info("%s: [dry-run] would switch %s → %s (%s)", self.name, before, target, reason)
-            return SwitchResult(self.name, before, target, target, True, 0, True)
-
+    def _switch(self, target: str, reason: str) -> SwitchResult:
         before, _ = self._switch_state()
         self.commanded_state = target
         service = f"switch/turn_{target}"
@@ -376,7 +355,6 @@ class ShellyPlug:
                 self._sleep(0.5 * 2**attempt)
         verified = state == target
         if verified:
-            self._sim_state = None  # a real switch resets any dry-run simulation
             self._log.info("%s: %s → %s verified after %d attempt(s) (%s)", self.name, before, target, attempts, reason)
         else:
             self.verify_failures += 1
@@ -390,7 +368,6 @@ class ShellyPlug:
             target,
             verified,
             attempts,
-            False,
             error=None if verified else f"read-back {state!r} != {target!r}",
         )
 
@@ -410,7 +387,7 @@ class ShellyPlug:
         self._log.warning("%s: LOCKED OUT until %s: %s", self.name, self.lockout_until.isoformat(), reason)
 
     def check_safety(self, now: datetime) -> str | None:
-        """Evaluate the live readings. On a trip: switch off (always for real, even in dry-run) and lock out."""
+        """Evaluate the live readings. On a trip: switch off and lock out."""
         if self.entities.switch is None:
             return None
         status = self.read_status()
@@ -431,7 +408,7 @@ class ShellyPlug:
             )
         if reason is None:
             return None
-        self._switch("off", f"safety: {reason}", dry_run=False)
+        self._switch("off", f"safety: {reason}")
         self.lock_out(now, reason)
         return reason
 
