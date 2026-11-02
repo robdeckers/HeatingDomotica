@@ -23,6 +23,7 @@ from heating_optimizer.logging_setup import setup_logger
 from heating_optimizer.prices.base import Commodity
 from heating_optimizer.prices.energyzero import EnergyZeroProvider
 from heating_optimizer.prices.service import HeatPrices, PriceService
+from heating_optimizer.tariffs import to_excl_vat
 from heating_optimizer.scheduling import drift_ms, hour_start, nearest_aligned_tick, next_aligned_tick
 
 SENSOR_PREFIX = "sensor.heating_optimizer_"
@@ -511,6 +512,34 @@ class MainApp(hass.Hass):
                 state=_r(value) if value is not None else "unknown",
                 attributes={**unit, **attrs},
             )
+        self._publish_market_price(heat)
+
+    def _publish_market_price(self, heat: HeatPrices) -> None:
+        """Raw EnergyZero electricity price excl. VAT: the same quote the decision used (cache or fallback sensor)."""
+        elec, tz = heat.elec, self.cfg.tz
+        attrs: dict[str, Any] = {
+            "friendly_name": "Electricity market price",
+            "icon": "mdi:transmission-tower",
+            "unit_of_measurement": "€/kWh",
+            "state_class": "measurement",
+        }
+        if elec is None:
+            self._publish(f"{SENSOR_PREFIX}elec_market_price", state="unknown", attributes=attrs)
+            return
+        tariff = elec.tariff
+        attrs.update(
+            market_incl_vat=_r(tariff.market_incl_vat, 5),
+            vat_rate=tariff.vat_rate,
+            applies_from=elec.applies_from.astimezone(tz).isoformat(),
+            applies_to=elec.applies_to.astimezone(tz).isoformat(),
+            resolution=elec.resolution,
+            source=elec.source,
+        )
+        self._publish(
+            f"{SENSOR_PREFIX}elec_market_price",
+            state=_r(to_excl_vat(tariff.market_incl_vat, tariff.vat_rate), 5),
+            attributes=attrs,
+        )
 
     def _publish_switch_on_count(self, plug: ShellyPlug) -> None:
         counter = self.switch_on_counters.get(plug.device_id)

@@ -189,6 +189,7 @@ def test_missing_prices_fail_safe(tmp_path):
     assert decisions(tmp_path)[-1]["reason_code"] == "STALE_DATA"
     assert ha.get_state("sensor.heating_optimizer_health") == "ERROR"
     assert ha.get_state("sensor.heating_optimizer_status") == "failsafe"
+    assert ha.get_state("sensor.heating_optimizer_elec_market_price") == "unknown"
     assert app.diag.self_test_ok is False
 
 
@@ -307,3 +308,14 @@ def test_switch_on_counter_published_and_persisted(tmp_path):
     assert ha.get_state("sensor.heating_optimizer_shelly_2_switch_on_count") == "0"
     make_main(ha, tmp_path)  # restart: the count survives
     assert ha.get_state(sensor) == "2"
+
+
+def test_elec_market_price_sensor_is_excl_vat(tmp_path):
+    ha = make_ha(elec_price=0.121, gas_price=0.60)  # EnergyZero is asked for prices incl. VAT
+    make_main(ha, tmp_path)
+    sensor = "sensor.heating_optimizer_elec_market_price"
+    assert float(ha.get_state(sensor)) == pytest.approx(0.1)  # 0.121 / 1.21
+    assert ha.get_state(sensor, "market_incl_vat") == pytest.approx(0.121)
+    assert ha.get_state(sensor, "unit_of_measurement") == "€/kWh"
+    assert ha.get_state(sensor, "source") == "cache"
+    assert ha.get_state(sensor, "applies_from") < ha.get_state(sensor, "applies_to")

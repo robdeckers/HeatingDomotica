@@ -26,6 +26,16 @@ views:
             name: Gas
           - entity: sensor.heating_optimizer_price_delta
             name: Gas − electric
+      - type: entities
+        title: Electricity market price
+        entities:
+          - entity: sensor.heating_optimizer_elec_market_price
+            name: EnergyZero, excl. VAT
+          - type: attribute
+            entity: sensor.heating_optimizer_elec_market_price
+            attribute: market_incl_vat
+            name: Incl. VAT
+            suffix: €/kWh
       # One sensor per plug in house.plugs: sensor.heating_optimizer_<name>_switch_on_count.
       # Adjust the entity IDs if your plugs have other names.
       - type: entities
@@ -38,11 +48,12 @@ views:
             name: shelly_2
             secondary_info: last-changed
       - type: history-graph
-        title: Heat prices (24 h)
+        title: Prices (24 h)
         hours_to_show: 24
         entities:
           - entity: sensor.heating_optimizer_elec_heat_price
           - entity: sensor.heating_optimizer_gas_heat_price
+          - entity: sensor.heating_optimizer_elec_market_price
       - type: markdown
         title: Last decision
         content: >-
