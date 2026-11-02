@@ -120,9 +120,12 @@ On the Pi, under `/addon_configs/a0d7b954_appdaemon/logs/heating_optimizer/`:
 - `decisions.jsonl` and `decisions.csv`: one record per tick (including HOLD), with every price component, the
   margins, timers, and per-plug before/after/verified/power. Both rotate at 5 MB, 10 backups.
 - `heating_optimizer.log`: the application log (also in the AppDaemon log).
+- `switch_on_counts.json`: the switch-on counter per plug, keyed by MAC. Delete it to reset the counters.
 
 Sensors in HA: `sensor.heating_optimizer_status`, `_elec_heat_price`, `_gas_heat_price`, `_price_delta`,
 `_last_decision`, `_health` (OK / DEGRADED / ERROR with the failing checks as attributes), and `_demo_output`.
+Per plug, `sensor.heating_optimizer_<name>_switch_on_count` counts every off → on of its switch, whether the app,
+a demo or a person switched it, and survives restarts. Switch-ons while AppDaemon is not running are not counted.
 ON/OFF changes also go to the HA logbook.
 
 Health turns DEGRADED after `tariffs_valid_until` (2026-12-31) as a reminder to update the energy tax and the ANWB

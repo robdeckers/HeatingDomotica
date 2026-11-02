@@ -286,3 +286,24 @@ def test_demo_stop_restores(tmp_path):
     cb(entity, "state", "unknown", "now", kwargs)
     assert ha.get_state("switch.plug1") == ha.get_state("switch.plug2") == "off"
     assert notifications(ha)[-1].endswith(": STOPPED")
+
+
+def fire_switch(app: Any, entity: str, old: str, new: str) -> None:
+    kwargs = next(kw for e, cb, kw in app.listeners if e == entity and cb == app._on_plug_switch)
+    app._on_plug_switch(entity, "state", old, new, kwargs)
+
+
+def test_switch_on_counter_published_and_persisted(tmp_path):
+    ha = make_ha(elec_price=0.30)
+    app = make_main(ha, tmp_path)
+    sensor = "sensor.heating_optimizer_shelly_1_switch_on_count"
+    assert ha.get_state(sensor) == "0"
+    assert ha.get_state(sensor, "state_class") == "total_increasing"
+    fire_switch(app, "switch.plug1", "off", "on")
+    fire_switch(app, "switch.plug1", "on", "off")
+    fire_switch(app, "switch.plug1", "off", "on")
+    fire_switch(app, "switch.plug1", "unavailable", "on")  # reconnect, not a switch-on
+    assert ha.get_state(sensor) == "2"
+    assert ha.get_state("sensor.heating_optimizer_shelly_2_switch_on_count") == "0"
+    make_main(ha, tmp_path)  # restart: the count survives
+    assert ha.get_state(sensor) == "2"

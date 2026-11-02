@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import re
 import threading
 import time
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import appdaemon.plugins.hass.hassapi as hass
 
 from heating_optimizer.config import AppConfig, ConfigError, parse_config
+from heating_optimizer.counters import SwitchOnCounters
 from heating_optimizer.decision import Action, Decision, DecisionInput, ReasonCode, decide
 from heating_optimizer.decision_log import DecisionLogger
 from heating_optimizer.devices.base import SwitchResult
@@ -27,6 +30,10 @@ STATUS_SENSOR = f"{SENSOR_PREFIX}status"
 HEALTH_SENSOR = f"{SENSOR_PREFIX}health"
 NOTIFICATION_ID = "heating_optimizer"
 SAFETY_SWEEP_S = 5
+
+
+def switch_on_count_sensor(plug_name: str) -> str:
+    return f"{SENSOR_PREFIX}{re.sub(r'[^a-z0-9_]+', '_', plug_name.lower())}_switch_on_count"
 
 
 def _r(value: float | None, digits: int = 4) -> float | None:
@@ -64,6 +71,9 @@ class MainApp(hass.Hass):
         except OSError as exc:
             self.diag.decision_log_error = f"cannot write decision log in {cfg.logging.decision_log_dir}: {exc}"
             self.app_log.error(self.diag.decision_log_error)
+        self.switch_on_counters = SwitchOnCounters(
+            Path(cfg.logging.decision_log_dir) / "switch_on_counts.json", self.app_log
+        )
 
         self.provider = EnergyZeroProvider(
             self,
@@ -117,6 +127,8 @@ class MainApp(hass.Hass):
         with self._tick_lock:
             self._self_test()
             self._register_plug_listeners()
+            for plug in self.plugs:
+                self._publish_switch_on_count(plug)
             self.ready = True
         self.app_log.info(
             "Heating optimizer started; next aligned tick %s",
@@ -275,6 +287,10 @@ class MainApp(hass.Hass):
 
     def _on_plug_switch(self, entity: str, attribute: str, old: Any, new: Any, kwargs: dict[str, Any]) -> None:
         plug = self.house.device(kwargs["plug_name"])
+        if old == "off" and new == "on":  # any switch-on: by the app, a demo or by hand (not unavailable → on)
+            self.switch_on_counters.increment(plug.device_id, self._now())
+            self._publish_switch_on_count(plug)
+            return
         if not (old == "on" and new == "off" and plug.commanded_state == "on"):
             return
         now = self._now()
@@ -495,6 +511,22 @@ class MainApp(hass.Hass):
                 state=_r(value) if value is not None else "unknown",
                 attributes={**unit, **attrs},
             )
+
+    def _publish_switch_on_count(self, plug: ShellyPlug) -> None:
+        counter = self.switch_on_counters.get(plug.device_id)
+        self._publish(
+            switch_on_count_sensor(plug.name),
+            state=counter["count"],
+            attributes={
+                "friendly_name": f"{plug.name} switch-ons",
+                "icon": "mdi:counter",
+                "unit_of_measurement": "switch-ons",
+                "state_class": "total_increasing",
+                "device_id": plug.device_id,
+                "counting_since": counter["since"],
+                "last_switched_on": counter["last_on"],
+            },
+        )
 
     def _status_state(self) -> str:
         if self._paused_by:

@@ -26,6 +26,17 @@ views:
             name: Gas
           - entity: sensor.heating_optimizer_price_delta
             name: Gas − electric
+      # One sensor per plug in house.plugs: sensor.heating_optimizer_<name>_switch_on_count.
+      # Adjust the entity IDs if your plugs have other names.
+      - type: entities
+        title: Shelly switch-ons
+        entities:
+          - entity: sensor.heating_optimizer_shelly_1_switch_on_count
+            name: shelly_1
+            secondary_info: last-changed
+          - entity: sensor.heating_optimizer_shelly_2_switch_on_count
+            name: shelly_2
+            secondary_info: last-changed
       - type: history-graph
         title: Heat prices (24 h)
         hours_to_show: 24
