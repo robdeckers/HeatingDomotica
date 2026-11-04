@@ -274,8 +274,8 @@ class DemoApp(hass.Hass):
             if heat.elec is not None:
                 cheaper = "electric" if heat.elec_per_kwh_heat < heat.gas_per_kwh_heat else "gas"
                 self._out(
-                    f"break-even electricity €{heat.break_even_elec_consumer:.4f}/kWh vs current "
-                    f"€{heat.elec.consumer_incl_vat:.4f}/kWh → {cheaper} heat is cheaper now"
+                    f"break-even electricity market €{heat.break_even_elec_market:.4f}/kWh excl. VAT vs current "
+                    f"€{heat.elec.market_excl_vat:.4f}/kWh → {cheaper} heat is cheaper now"
                 )
             self._check(
                 "gas sample", "PASS" if 0.5 < gas.consumer_incl_vat < 5 else "FAIL", f"€{gas.consumer_incl_vat:.4f}/m³"

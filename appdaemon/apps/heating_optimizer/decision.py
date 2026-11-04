@@ -8,7 +8,8 @@ Rules, evaluated in order:
 5. A timer blocks the change from rule 3 or 4 → HOLD (MIN_OFF_TIMER / MIN_ON_TIMER).
 6. Otherwise → HOLD (IN_HYSTERESIS_BAND when between the thresholds, else NO_CHANGE).
 
-Rules 1 and 2 ignore the min-on timer. Whether the heaters themselves are switched on by a person does not matter.
+Electric heat is valued at the market price excl. VAT (solar surplus: the feed-in value), gas at its consumer price;
+see ``prices.service.HeatPrices``. Rules 1 and 2 ignore the min-on timer. Whether the heaters themselves are switched on by a person does not matter.
 """
 
 from __future__ import annotations
@@ -95,7 +96,7 @@ def decide(inp: DecisionInput) -> Decision:
 
     elec, gas = inp.elec_per_kwh_heat, inp.gas_per_kwh_heat
     minutes = inp.minutes_in_state()
-    prices = f"electric heat {_eur(elec)}/kWh vs gas heat {_eur(gas)}/kWh"
+    prices = f"electric heat (market) {_eur(elec)}/kWh vs gas heat {_eur(gas)}/kWh"
 
     if not inp.heating_on:
         if elec + inp.margin_on < gas:
@@ -108,7 +109,7 @@ def decide(inp: DecisionInput) -> Decision:
             return make(
                 Action.ON,
                 ReasonCode.ELEC_CHEAPER,
-                f"Electric heat {_eur(elec)}/kWh is {_eur(gas - elec)} cheaper than gas heat {_eur(gas)}/kWh "
+                f"Electric heat (market) {_eur(elec)}/kWh is {_eur(gas - elec)} cheaper than gas heat {_eur(gas)}/kWh "
                 f"(margin {_eur(inp.margin_on)})",
             )
         if elec < gas - inp.margin_off:
@@ -129,7 +130,7 @@ def decide(inp: DecisionInput) -> Decision:
         return make(
             Action.OFF,
             ReasonCode.GAS_CHEAPER,
-            f"Electric heat {_eur(elec)}/kWh is no longer cheaper than gas heat {_eur(gas)}/kWh "
+            f"Electric heat (market) {_eur(elec)}/kWh is no longer cheaper than gas heat {_eur(gas)}/kWh "
             f"by the switch-off margin {_eur(inp.margin_off)}",
         )
     if elec + inp.margin_on >= gas:

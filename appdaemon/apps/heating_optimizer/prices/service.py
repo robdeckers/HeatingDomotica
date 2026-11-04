@@ -19,7 +19,7 @@ from heating_optimizer.scheduling import (
     hour_start,
     local_day_bounds,
 )
-from heating_optimizer.tariffs import TariffBreakdown, consumer_price
+from heating_optimizer.tariffs import TariffBreakdown, consumer_price, to_excl_vat
 
 
 @dataclass(frozen=True)
@@ -37,17 +37,27 @@ class Quote:
     def consumer_incl_vat(self) -> float:
         return self.tariff.consumer_incl_vat
 
+    @property
+    def market_excl_vat(self) -> float:
+        return to_excl_vat(self.tariff.market_incl_vat, self.tariff.vat_rate)
+
 
 @dataclass(frozen=True)
 class HeatPrices:
-    """Cost of one kWh of useful heat from each source. A missing quote leaves its heat price None."""
+    """Cost of one kWh of useful heat from each source. A missing quote leaves its heat price None.
+
+    Electricity is valued at the market price excl. VAT: the house has a yearly solar surplus, so a kWh used for
+    heating costs the feed-in value it would otherwise earn, not the consumer price. The consumer price is kept for
+    display only. Gas is valued at its full consumer price.
+    """
 
     elec: Quote | None
     gas: Quote | None
-    elec_per_kwh_heat: float | None
+    elec_per_kwh_heat: float | None  # decision basis: market price excl. VAT / efficiency
+    elec_consumer_per_kwh_heat: float | None  # display only: consumer price incl. VAT / efficiency
     gas_per_kwh_fuel: float | None
     gas_per_kwh_heat: float | None
-    break_even_elec_consumer: float | None
+    break_even_elec_market: float | None  # market price excl. VAT at which electric heat equals gas heat
     gas_day: date
 
     @property
@@ -191,7 +201,8 @@ class PriceService:
         elec = self.electricity(now)
         gas = self.gas(now)
         efficiency = self._cfg.electric_heating.efficiency
-        elec_heat = elec_per_kwh_heat(elec.consumer_incl_vat, efficiency) if elec else None
+        elec_heat = elec_per_kwh_heat(elec.market_excl_vat, efficiency) if elec else None
+        elec_consumer_heat = elec_per_kwh_heat(elec.consumer_incl_vat, efficiency) if elec else None
         gas_fuel = gas_heat = break_even = None
         if gas:
             gas_fuel = gas_per_kwh_fuel(gas.consumer_incl_vat, self._cfg.gas.calorific_value_kwh_per_m3)
@@ -199,7 +210,9 @@ class PriceService:
                 gas.consumer_incl_vat, self._cfg.gas.calorific_value_kwh_per_m3, self._cfg.gas.boiler_efficiency
             )
             break_even = break_even_elec_price(gas_heat, efficiency)
-        return HeatPrices(elec, gas, elec_heat, gas_fuel, gas_heat, break_even, gas_day_of(now, self._tz))
+        return HeatPrices(
+            elec, gas, elec_heat, elec_consumer_heat, gas_fuel, gas_heat, break_even, gas_day_of(now, self._tz)
+        )
 
     def _age(self, now: datetime, source: str) -> float:
         refreshed = self.elec_cache.last_refresh if source == "cache" else None

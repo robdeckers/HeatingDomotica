@@ -448,7 +448,9 @@ class MainApp(hass.Hass):
             else {
                 **elec.tariff.as_dict(),
                 "consumer_kwh": _r(elec.consumer_incl_vat, 5),
+                "basis": "market_excl_vat",
                 "per_kwh_heat": _r(heat.elec_per_kwh_heat, 5),
+                "consumer_per_kwh_heat": _r(heat.elec_consumer_per_kwh_heat, 5),
                 "applies_to": f"{elec.applies_from.astimezone(tz):%H:%M}-{elec.applies_to.astimezone(tz):%H:%M}",
                 "resolution": elec.resolution,
                 "source": elec.source,
@@ -494,16 +496,26 @@ class MainApp(hass.Hass):
         unit = {"unit_of_measurement": "€/kWh", "state_class": "measurement"}
         elec_attrs = heat.elec.tariff.as_dict() if heat.elec else {}
         if heat.elec:
-            elec_attrs.update(source=heat.elec.source, resolution=heat.elec.resolution)
+            elec_attrs.update(
+                source=heat.elec.source,
+                resolution=heat.elec.resolution,
+                basis="market_excl_vat",
+                market_excl_vat=_r(heat.elec.market_excl_vat, 5),
+            )
         gas_attrs = heat.gas.tariff.as_dict() if heat.gas else {}
         if heat.gas:
             gas_attrs.update(
                 gas_day=heat.gas_day.isoformat(),
                 per_kwh_fuel=_r(heat.gas_per_kwh_fuel, 5),
-                break_even_elec_consumer=_r(heat.break_even_elec_consumer, 5),
+                break_even_elec_market=_r(heat.break_even_elec_market, 5),
             )
         for name, value, attrs in (
             ("elec_heat_price", heat.elec_per_kwh_heat, elec_attrs),
+            (
+                "elec_consumer_heat_price",
+                heat.elec_consumer_per_kwh_heat,
+                {"meaning": "consumer price incl. VAT per kWh heat; display only, not used by the decision"},
+            ),
             ("gas_heat_price", heat.gas_per_kwh_heat, gas_attrs),
             ("price_delta", heat.delta, {"meaning": "gas heat minus electric heat; positive = electric cheaper"}),
         ):

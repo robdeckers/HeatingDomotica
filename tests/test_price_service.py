@@ -33,8 +33,21 @@ def test_heat_prices_from_cache(service):
     assert heat.elec.consumer_incl_vat == pytest.approx(0.05 + 0.018 + 0.11085)
     assert heat.gas.consumer_incl_vat == pytest.approx(0.60 + 0.0768 + 0.7268)
     assert heat.gas_per_kwh_heat == pytest.approx((0.60 + 0.0768 + 0.7268) / 9.769 / 0.90)
+    # Decision basis: electricity at the market price excl. VAT; the consumer price is for display only.
+    assert heat.elec.market_excl_vat == pytest.approx(0.05 / 1.21)
+    assert heat.elec_per_kwh_heat == pytest.approx(0.05 / 1.21)
+    assert heat.elec_consumer_per_kwh_heat == pytest.approx(0.05 + 0.018 + 0.11085)
     assert heat.delta == pytest.approx(heat.gas_per_kwh_heat - heat.elec_per_kwh_heat)
-    assert heat.break_even_elec_consumer == pytest.approx(heat.gas_per_kwh_heat)
+    assert heat.break_even_elec_market == pytest.approx(heat.gas_per_kwh_heat)
+
+
+def test_negative_market_price_gives_negative_electric_heat(provider):
+    provider.set_hourly(Commodity.ELECTRICITY, TODAY_START, 24, -0.03)
+    service = PriceService(provider, make_config(), LOG)
+    assert service.refresh(NOW)
+    heat = service.heat_prices(NOW)
+    assert heat.elec_per_kwh_heat == pytest.approx(-0.03 / 1.21)
+    assert heat.elec_consumer_per_kwh_heat == pytest.approx(-0.03 + 0.018 + 0.11085)
 
 
 def test_gas_before_six_uses_previous_gas_day(provider):

@@ -21,7 +21,7 @@ views:
         columns: 3
         entities:
           - entity: sensor.heating_optimizer_elec_heat_price
-            name: Electric
+            name: Electric (market)
           - entity: sensor.heating_optimizer_gas_heat_price
             name: Gas
           - entity: sensor.heating_optimizer_price_delta
@@ -52,7 +52,11 @@ views:
         hours_to_show: 24
         entities:
           - entity: sensor.heating_optimizer_elec_heat_price
+            name: Electric heat (market, decision)
+          - entity: sensor.heating_optimizer_elec_consumer_heat_price
+            name: Electric heat (consumer)
           - entity: sensor.heating_optimizer_gas_heat_price
+            name: Gas heat
           - entity: sensor.heating_optimizer_elec_market_price
       - type: markdown
         title: Last decision

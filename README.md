@@ -15,11 +15,16 @@ shares the repository's pre-commit hooks.
 - **Every 5 minutes** (hh:00, hh:05, …, aligned to the clock) the app compares the cost of one kWh of heat from each
   source and decides ON, OFF, or HOLD:
   ```
-  electric heat = (market + ANWB fee + energy tax) per kWh            / heater efficiency (1.0)
+  electric heat = market price excl. VAT per kWh                      / heater efficiency (1.0)
   gas heat      = (market + ANWB fee + energy tax) per m³ / 9.769 kWh/m³ / boiler efficiency (0.90)
   ```
   It switches ON when electric heat is at least 2 ct/kWh cheaper, OFF when the advantage drops below 0.5 ct/kWh,
-  and keeps each state for at least 15 minutes. Every tariff component is entered **incl. 21% VAT**.
+  and keeps each state for at least 15 minutes. Every gas tariff component is entered **incl. 21% VAT**.
+- **Electricity at market price.** The house produces a yearly solar surplus (about 2000 kWh in 2026), so a kWh used
+  for heating costs what it would otherwise earn as feed-in: the market price excl. VAT, not the consumer price.
+  ANWB fee and energy tax are left out of the decision on purpose. Without a yearly surplus this rule runs the
+  heaters far more than is economical. The consumer price per kWh of heat is still published
+  (`sensor.heating_optimizer_elec_consumer_heat_price`) and shown in the dashboard graph.
 - **Fixed charges** (standing charge, grid fees, energy tax credit) are excluded on purpose: they do not change with
   consumption, so they do not affect which source is cheaper for the next kWh. The energy tax used is the
   **first-tier** rate, which applies to normal household usage.
@@ -122,7 +127,8 @@ On the Pi, under `/addon_configs/a0d7b954_appdaemon/logs/heating_optimizer/`:
 - `heating_optimizer.log`: the application log (also in the AppDaemon log).
 - `switch_on_counts.json`: the switch-on counter per plug, keyed by MAC. Delete it to reset the counters.
 
-Sensors in HA: `sensor.heating_optimizer_status`, `_elec_heat_price`, `_gas_heat_price`, `_price_delta`,
+Sensors in HA: `sensor.heating_optimizer_status`, `_elec_heat_price` (market based, the decision basis),
+`_elec_consumer_heat_price` (display only), `_gas_heat_price`, `_price_delta`,
 `_elec_market_price` (the raw EnergyZero electricity price excl. VAT; incl. VAT as attribute),
 `_last_decision`, `_health` (OK / DEGRADED / ERROR with the failing checks as attributes), and `_demo_output`.
 Per plug, `sensor.heating_optimizer_<name>_switch_on_count` counts every off → on of its switch, whether the app,
